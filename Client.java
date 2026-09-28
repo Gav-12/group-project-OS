@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Scanner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Client {
     //set ip & port
@@ -89,6 +91,65 @@ public class Client {
         boxBottom();
     }
 
+    // a box line where the text is already colored (so we pass its visible length separately)
+    private static void boxLineRaw(String colored, int plainLen) {
+        System.out.println(c(CYAN, "|") + " " + colored
+                + repeat(' ', Math.max(0, WIDTH - 2 - plainLen)) + " " + c(CYAN, "|"));
+    }
+
+    // Draws LIST replies like "[Ticket 7: AVAILABLE]" as a grid of tickets.
+    // Falls back to the normal box if the reply doesn't look like that.
+    private static void printSeatGrid(String sent, List<String> lines, String clientId) {
+        Pattern p = Pattern.compile("Ticket\\s+(\\d+)\\s*:\\s*([^\\]]*)", Pattern.CASE_INSENSITIVE);
+        List<Integer> ids = new ArrayList<>();
+        List<String> states = new ArrayList<>();
+        for (String l : lines) {
+            Matcher m = p.matcher(l);
+            if (m.find()) {
+                ids.add(Integer.parseInt(m.group(1)));
+                states.add(m.group(2).trim());
+            }
+        }
+        if (ids.isEmpty()) {
+            printResult("LIST", sent, lines);
+            return;
+        }
+
+        int free = 0, mine = 0, taken = 0;
+        final int PER_ROW = 10;
+
+        System.out.println();
+        boxTop("TICKETS");
+        for (int start = 0; start < ids.size(); start += PER_ROW) {
+            StringBuilder colored = new StringBuilder();
+            int plainLen = 0;
+            for (int i = start; i < Math.min(start + PER_ROW, ids.size()); i++) {
+                String num = String.format("%2d", ids.get(i));
+                String state = states.get(i);
+                String cell;
+                if (state.equalsIgnoreCase("AVAILABLE")) {
+                    cell = c(GREEN, "[" + num + "]");           // free
+                } else if (state.toUpperCase().contains(clientId.toUpperCase())) {
+                    cell = c(YELLOW, "{" + num + "}");          // reserved by you
+                } else {
+                    cell = c(RED, "(" + num + ")");             // taken by someone else
+                }
+                if (state.equalsIgnoreCase("AVAILABLE")) free++;
+                else if (state.toUpperCase().contains(clientId.toUpperCase())) mine++;
+                else taken++;
+
+                if (i > start) { colored.append(' '); plainLen++; }
+                colored.append(cell);
+                plainLen += 4;
+            }
+            boxLineRaw(colored.toString(), plainLen);
+        }
+        boxLine("", null);
+        boxLineRaw(c(GREEN, "[ 1] free") + "   " + c(RED, "( 1) taken") + "   " + c(YELLOW, "{ 1} yours"), 35);
+        boxLine("Free: " + free + "   Taken: " + taken + "   Yours: " + mine, BOLD);
+        boxBottom();
+    }
+
     private static void printError(String message) {
         System.out.println(c(RED, " ! " + message));
     }
@@ -163,7 +224,7 @@ public class Client {
                         socket.setSoTimeout(15000);
                         String cmd = "LIST";
                         out.println(cmd);
-                        printResult("LIST", cmd, readServerResponse(in));
+                        printSeatGrid(cmd, readServerResponse(in), clientId);
                         break;
                     }
                     case "STATUS": {
