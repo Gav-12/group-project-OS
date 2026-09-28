@@ -9,12 +9,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Client {
-    //set ip & port
+
     public static final String SERVER_IP = "127.0.0.1";
     public static final int PORT = 8080;
 
-    // ---------- TUI helpers (colors + boxes) ----------
-    // Colors are turned off with:  java Client 1 --no-color   (for terminals that show weird symbols)
     private static boolean useColor = true;
     private static final String RESET = "\u001B[0m";
     private static final String BOLD = "\u001B[1m";
@@ -91,14 +89,11 @@ public class Client {
         boxBottom();
     }
 
-    // a box line where the text is already colored (so we pass its visible length separately)
     private static void boxLineRaw(String colored, int plainLen) {
         System.out.println(c(CYAN, "|") + " " + colored
                 + repeat(' ', Math.max(0, WIDTH - 2 - plainLen)) + " " + c(CYAN, "|"));
     }
 
-    // Draws LIST replies like "[Ticket 7: AVAILABLE]" as a grid of tickets.
-    // Falls back to the normal box if the reply doesn't look like that.
     private static void printSeatGrid(String sent, List<String> lines, String clientId) {
         Pattern p = Pattern.compile("Ticket\\s+(\\d+)\\s*:\\s*([^\\]]*)", Pattern.CASE_INSENSITIVE);
         List<Integer> ids = new ArrayList<>();
@@ -128,11 +123,11 @@ public class Client {
                 String state = states.get(i);
                 String cell;
                 if (state.equalsIgnoreCase("AVAILABLE")) {
-                    cell = c(GREEN, "[" + num + "]");           // free
+                    cell = c(GREEN, "[" + num + "]");
                 } else if (state.toUpperCase().contains(clientId.toUpperCase())) {
-                    cell = c(YELLOW, "{" + num + "}");          // reserved by you
+                    cell = c(YELLOW, "{" + num + "}");
                 } else {
-                    cell = c(RED, "(" + num + ")");             // taken by someone else
+                    cell = c(RED, "(" + num + ")");
                 }
                 if (state.equalsIgnoreCase("AVAILABLE")) free++;
                 else if (state.toUpperCase().contains(clientId.toUpperCase())) mine++;
@@ -159,10 +154,8 @@ public class Client {
         return scanner.nextLine().trim();
     }
 
-    // ---------- main ----------
     public static void main(String[] args) throws InterruptedException {
 
-        //warning error cmd argument
         if (args.length < 1) {
             System.out.println("Usage: java Client <Client_Number> [--no-color]");
             System.out.println("Examples:");
@@ -174,13 +167,11 @@ public class Client {
             if (a.equals("--no-color")) useColor = false;
         }
 
-        //set client
         final String clientId = "Client-" + args[0];
         Scanner scanner = new Scanner(System.in);
 
-        //main send & read
         try (
-            //set socket&Buffer
+
             Socket socket = new Socket(SERVER_IP, PORT);
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -198,7 +189,6 @@ public class Client {
                 String command = parts[0].toUpperCase();
                 String cmdArg = parts.length > 1 ? parts[1] : "";
 
-                // allow menu numbers
                 switch (command) {
                     case "1": command = "LIST"; break;
                     case "2": command = "STATUS"; break;
@@ -209,7 +199,6 @@ public class Client {
                     default: break;
                 }
 
-                // commands that need an id: ask for it if the user didn't type one
                 if ((command.equals("STATUS") || command.equals("RESERVE") || command.equals("CANCEL"))
                         && cmdArg.isEmpty()) {
                     cmdArg = ask(scanner, "Resource id");
@@ -256,13 +245,12 @@ public class Client {
                 }
             }
         }
-        //if can't connect to server
+
         catch (IOException e) {
             System.out.println("Connecting to Server Unsuccess [ PORT:" + PORT + " ]");
         }
     }
 
-    // ---------- stress test (same logic as before, moved into a method) ----------
     private static void runStressTest() throws InterruptedException {
         int resourceId = 1;
         final int TOTAL = 1500;
@@ -283,7 +271,7 @@ public class Client {
                     BufferedReader r = new BufferedReader(new InputStreamReader(s.getInputStream()))
                 ) {
                     ready.countDown();
-                    startSignal.await();               // fire at the same time
+                    startSignal.await();
                     o.println("RESERVE " + currentResourceId + " " + id);
                     String resp = r.readLine();
                     if (resp != null && resp.contains("SUCCESS:")) successCount.incrementAndGet();
@@ -317,7 +305,6 @@ public class Client {
         boxBottom();
     }
 
-    // ---------- read server reply (same idea as before, but returns the lines) ----------
     public static List<String> readServerResponse(BufferedReader in) throws IOException {
         List<String> lines = new ArrayList<>();
         String line = in.readLine();
